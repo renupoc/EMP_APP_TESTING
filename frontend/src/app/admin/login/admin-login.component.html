@@ -1,0 +1,39 @@
+<div class="page">
+  <div class="card">
+    <h1>Manager Login</h1>
+    <p class="subtitle">Sign in as Manager</p>
+
+    <form (ngSubmit)="login()">
+      <div class="form-group">
+        <label>Email</label>
+        <input
+          type="email"
+          [(ngModel)]="email"
+          name="email"
+          required
+          placeholder="Enter Manager email"
+        />
+      </div>
+
+      <div class="form-group">
+        <label>Password</label>
+        <input
+          type="password"
+          [(ngModel)]="password"
+          name="password"
+          required
+          placeholder="Enter password"
+        />
+      </div>
+
+      <button type="submit" class="btn primary">
+        Login
+      </button>
+    </form>
+
+    <p class="footer-text">
+      Employee?
+      <a routerLink="/login">Login here</a>
+    </p>
+  </div>
+</div>
