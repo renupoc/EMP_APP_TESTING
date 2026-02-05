@@ -24,7 +24,7 @@ import org.mockito.ArgumentCaptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.Mockito.*;
+//import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class AttendanceServiceTest {
@@ -321,6 +321,19 @@ void getWeeklyAttendance_attendanceNotFound_shouldThrowException() {
     verify(attendanceWeeklyRepository, never()).save(any());
     verify(attendanceRepository, never()).save(any());
 }
+
+@Test
+void updateWeeklyAttendance_shouldThrowException_whenWeekInvalid() {
+    RuntimeException ex = assertThrows(
+            RuntimeException.class,
+            () -> attendanceService.updateWeeklyAttendance(
+                    1L, 1, 2024, 0, 5   // ❌ invalid week
+            )
+    );
+
+    assertNotNull(ex);
+}
+
 
 
 }

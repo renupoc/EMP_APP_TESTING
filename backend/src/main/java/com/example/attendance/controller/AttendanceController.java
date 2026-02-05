@@ -1,7 +1,6 @@
 package com.example.attendance.controller;
 
 import com.example.attendance.dto.AttendanceRequest;
-//import com.example.attendance.dto.WeeklySummaryResponse;
 import com.example.attendance.entity.Attendance;
 import com.example.attendance.entity.AttendanceDay;
 import com.example.attendance.entity.Employee;
@@ -9,7 +8,6 @@ import com.example.attendance.repository.AttendanceDayRepository;
 import com.example.attendance.repository.AttendanceRepository;
 import com.example.attendance.repository.EmployeeRepository;
 import com.example.attendance.service.AttendanceService;
-//import com.example.attendance.dto.WeeklyUpdateRequest;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,7 +25,7 @@ public class AttendanceController {
     private final AttendanceRepository attendanceRepository;
     private final AttendanceDayRepository attendanceDayRepository;
     private final EmployeeRepository employeeRepository;
-    private final AttendanceService attendanceService;
+    //private final AttendanceService attendanceService;
 
     public AttendanceController(
             AttendanceRepository attendanceRepository,
@@ -38,7 +36,7 @@ public class AttendanceController {
         this.attendanceRepository = attendanceRepository;
         this.attendanceDayRepository = attendanceDayRepository;
         this.employeeRepository = employeeRepository;
-        this.attendanceService = attendanceService;
+        //this.attendanceService = attendanceService;
     }
 
     // =====================================================

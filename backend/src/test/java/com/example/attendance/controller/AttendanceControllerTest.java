@@ -20,8 +20,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+//import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import org.springframework.http.MediaType;
 
 @WebMvcTest(AttendanceController.class)
 class AttendanceControllerTest {
@@ -181,7 +182,32 @@ void submitAttendance_shouldReturn500_withErrorJson_whenEmployeeNotFound() throw
     .andExpect(jsonPath("$.status").value(500))
     .andExpect(jsonPath("$.error").value("Internal Server Error"));
 }
+@Test
+void saveAttendance_shouldReturnBadRequest_whenWorkingDaysExceedTotalDays() throws Exception {
 
+    Employee employee = new Employee();
+    employee.setId(1L);
+
+    when(employeeRepository.findById(1L))
+            .thenReturn(Optional.of(employee));
+
+    String payload = """
+        {
+          "month": 1,
+          "year": 2026,
+          "totalDays": 20,
+          "totalWorkingDays": 25,
+          "workedDays": 10
+        }
+        """;
+
+    mockMvc.perform(post("/api/attendance/submit/{employeeId}", 1L)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(payload))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message")
+                    .value("Working days cannot exceed total days"));
+}
 
 
 }
