@@ -18,7 +18,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/attendance")
-@CrossOrigin(origins = "${FRONTEND_URL}")
+@CrossOrigin(origins = "http://localhost:4200")
 public class AttendanceController {
 
     private final AttendanceRepository attendanceRepository;
