@@ -2,9 +2,11 @@ package com.example.attendance.dto;
 
 public class LoginRequest {
 
-    public String email;
-    public String password;
- public String getEmail() {
+    private String email;
+    private String password;
+
+    // Getter for email
+    public String getEmail() {
         return email;
     }
 

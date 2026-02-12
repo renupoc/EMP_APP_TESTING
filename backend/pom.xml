@@ -26,6 +26,13 @@
         <sonar.projectName>Employee Availability Backend</sonar.projectName>
         <sonar.host.url>http://localhost:9002</sonar.host.url>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <sonar.exclusions>
+            coverage/**,
+            **/coverage/**,
+            **/lcov-report/**
+        </sonar.exclusions>
+
+
     </properties>
 
     <dependencies>

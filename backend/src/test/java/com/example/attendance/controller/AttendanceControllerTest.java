@@ -1,28 +1,28 @@
 package com.example.attendance.controller;
 
-import com.example.attendance.repository.AttendanceRepository;
 import com.example.attendance.dto.AttendanceRequest;
 import com.example.attendance.entity.Employee;
 import com.example.attendance.repository.AttendanceDayRepository;
+import com.example.attendance.repository.AttendanceRepository;
 import com.example.attendance.repository.EmployeeRepository;
 import com.example.attendance.service.AttendanceService;
-import java.util.Optional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-//import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import org.springframework.http.MediaType;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AttendanceController.class)
 class AttendanceControllerTest {
@@ -31,9 +31,9 @@ class AttendanceControllerTest {
     private MockMvc mockMvc;
 
     @Autowired
-private ObjectMapper objectMapper;
+    private ObjectMapper objectMapper;
 
-    // 🔴 MUST mock ALL constructor dependencies
+    // Mock all constructor dependencies of AttendanceController
     @MockBean
     private AttendanceRepository attendanceRepository;
 
@@ -46,168 +46,174 @@ private ObjectMapper objectMapper;
     @MockBean
     private AttendanceService attendanceService;
 
+    /**
+     * Verifies that the admin endpoint
+     * GET /api/attendance/admin/all
+     * returns HTTP 200 OK.
+     */
     @Test
     void getAllAttendance_shouldReturn200() throws Exception {
-        mockMvc.perform(
-                get("/api/attendance/admin/all")
-        ).andExpect(status().isOk());
+        mockMvc.perform(get("/api/attendance/admin/all"))
+                .andExpect(status().isOk());
     }
 
-    //POST controller test (/submit/{employeeId})
-@Test
-void submitAttendance_shouldReturn200_whenRequestIsValid() throws Exception {
+    /**
+     * Submits valid attendance data
+     * and expects HTTP 200 OK.
+     */
+    @Test
+    void submitAttendance_shouldReturn200_whenRequestIsValid() throws Exception {
 
-    // GIVEN
-    Long employeeId = 1L;
+        Long employeeId = 1L;
 
-    Employee employee = new Employee();
-    employee.setId(employeeId);
+        Employee employee = new Employee();
+        employee.setId(employeeId);
 
-    AttendanceRequest request = new AttendanceRequest();
-    request.setMonth(1);
-    request.setYear(2025);
-    request.setTotalDays(31);
-    request.setTotalWorkingDays(20);
-    request.setWorkedDays(10);
+        AttendanceRequest request = new AttendanceRequest();
+        request.setMonth(1);
+        request.setYear(2025);
+        request.setTotalDays(31);
+        request.setTotalWorkingDays(20);
+        request.setWorkedDays(10);
 
-    when(employeeRepository.findById(employeeId))
-            .thenReturn(Optional.of(employee));
+        when(employeeRepository.findById(employeeId))
+                .thenReturn(Optional.of(employee));
 
-    when(attendanceRepository
-            .findByEmployeeIdAndMonthAndYear(employeeId, 1, 2025))
-            .thenReturn(Optional.empty());
+        when(attendanceRepository
+                .findByEmployeeIdAndMonthAndYear(employeeId, 1, 2025))
+                .thenReturn(Optional.empty());
 
-    // WHEN + THEN
-    mockMvc.perform(
-            post("/api/attendance/submit/{employeeId}", employeeId)
-                    .contentType("application/json")
-                    .content(objectMapper.writeValueAsString(request))
-    )
-    .andExpect(status().isOk());
+        mockMvc.perform(
+                post("/api/attendance/submit/{employeeId}", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isOk());
 
-    // VERIFY persistence happened
-    verify(attendanceRepository, times(1)).save(any());
-}
+        verify(attendanceRepository, times(1)).save(any());
+    }
 
-// =====================
-    // 🔽 ADD THESE HERE 🔽
-    // VALIDATION TESTS (400)
-    // =====================
+    /**
+     * Returns 400 BAD REQUEST when
+     * totalWorkingDays is zero.
+     */
+    @Test
+    void submitAttendance_shouldReturn400_whenTotalWorkingDaysIsZero() throws Exception {
 
-//TEST 1: totalWorkingDays = 0 → 400 BAD REQUEST
+        Long employeeId = 1L;
 
-@Test
-void submitAttendance_shouldReturn400_whenTotalWorkingDaysIsZero() throws Exception {
+        Employee employee = new Employee();
+        employee.setId(employeeId);
 
-    Long employeeId = 1L;
+        AttendanceRequest request = new AttendanceRequest();
+        request.setMonth(1);
+        request.setYear(2025);
+        request.setTotalDays(31);
+        request.setTotalWorkingDays(0);
+        request.setWorkedDays(0);
 
-    Employee employee = new Employee();
-    employee.setId(employeeId);
+        when(employeeRepository.findById(employeeId))
+                .thenReturn(Optional.of(employee));
 
-    AttendanceRequest request = new AttendanceRequest();
-    request.setMonth(1);
-    request.setYear(2025);
-    request.setTotalDays(31);
-    request.setTotalWorkingDays(0);   // ❌ INVALID
-    request.setWorkedDays(0);
+        mockMvc.perform(
+                post("/api/attendance/submit/{employeeId}", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isBadRequest());
 
-    when(employeeRepository.findById(employeeId))
-            .thenReturn(Optional.of(employee));
+        verify(attendanceRepository, never()).save(any());
+    }
 
-    mockMvc.perform(
-            post("/api/attendance/submit/{employeeId}", employeeId)
-                    .contentType("application/json")
-                    .content(objectMapper.writeValueAsString(request))
-    )
-    .andExpect(status().isBadRequest());
+    /**
+     * Returns 400 BAD REQUEST when
+     * workedDays exceed totalWorkingDays.
+     */
+    @Test
+    void submitAttendance_shouldReturn400_whenWorkedDaysExceedTotalWorkingDays() throws Exception {
 
-    // Ensure nothing is saved
-    verify(attendanceRepository, never()).save(any());
-}
+        Long employeeId = 1L;
 
-//🧪 TEST 2: workedDays > totalWorkingDays → 400 BAD REQUEST
+        Employee employee = new Employee();
+        employee.setId(employeeId);
 
-@Test
-void submitAttendance_shouldReturn400_whenWorkedDaysExceedTotalWorkingDays() throws Exception {
+        AttendanceRequest request = new AttendanceRequest();
+        request.setMonth(1);
+        request.setYear(2025);
+        request.setTotalDays(31);
+        request.setTotalWorkingDays(10);
+        request.setWorkedDays(15);
 
-    Long employeeId = 1L;
+        when(employeeRepository.findById(employeeId))
+                .thenReturn(Optional.of(employee));
 
-    Employee employee = new Employee();
-    employee.setId(employeeId);
+        mockMvc.perform(
+                post("/api/attendance/submit/{employeeId}", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        ).andExpect(status().isBadRequest());
 
-    AttendanceRequest request = new AttendanceRequest();
-    request.setMonth(1);
-    request.setYear(2025);
-    request.setTotalDays(31);
-    request.setTotalWorkingDays(10);
-    request.setWorkedDays(15);   // ❌ INVALID
+        verify(attendanceRepository, never()).save(any());
+    }
 
-    when(employeeRepository.findById(employeeId))
-            .thenReturn(Optional.of(employee));
+    /**
+     * Returns 500 INTERNAL SERVER ERROR
+     * when employee does not exist.
+     */
+    @Test
+    void submitAttendance_shouldReturn500_whenEmployeeNotFound() throws Exception {
 
-    mockMvc.perform(
-            post("/api/attendance/submit/{employeeId}", employeeId)
-                    .contentType("application/json")
-                    .content(objectMapper.writeValueAsString(request))
-    )
-    .andExpect(status().isBadRequest());
+        Long employeeId = 99L;
 
-    verify(attendanceRepository, never()).save(any());
-}
+        AttendanceRequest request = new AttendanceRequest();
+        request.setMonth(1);
+        request.setYear(2025);
+        request.setTotalDays(31);
+        request.setTotalWorkingDays(20);
+        request.setWorkedDays(10);
 
-//
-@Test
-void submitAttendance_shouldReturn500_withErrorJson_whenEmployeeNotFound() throws Exception {
+        when(employeeRepository.findById(employeeId))
+                .thenReturn(Optional.empty());
 
-    Long employeeId = 99L;
+        mockMvc.perform(
+                post("/api/attendance/submit/{employeeId}", employeeId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+        )
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.message").value("Employee not found"))
+        .andExpect(jsonPath("$.status").value(500))
+        .andExpect(jsonPath("$.error").value("Internal Server Error"));
+    }
 
-    AttendanceRequest request = new AttendanceRequest();
-    request.setMonth(1);
-    request.setYear(2025);
-    request.setTotalDays(31);
-    request.setTotalWorkingDays(20);
-    request.setWorkedDays(10);
+    /**
+     * Returns 400 BAD REQUEST when
+     * totalWorkingDays exceed totalDays.
+     */
+    @Test
+    void saveAttendance_shouldReturnBadRequest_whenWorkingDaysExceedTotalDays() throws Exception {
 
-    // Employee NOT found
-    when(employeeRepository.findById(employeeId))
-            .thenReturn(Optional.empty());
+        Employee employee = new Employee();
+        employee.setId(1L);
 
-    mockMvc.perform(
-            post("/api/attendance/submit/{employeeId}", employeeId)
-                    .contentType("application/json")
-                    .content(objectMapper.writeValueAsString(request))
-    )
-    .andExpect(status().isInternalServerError())
-    .andExpect(jsonPath("$.message").value("Employee not found"))
-    .andExpect(jsonPath("$.status").value(500))
-    .andExpect(jsonPath("$.error").value("Internal Server Error"));
-}
-@Test
-void saveAttendance_shouldReturnBadRequest_whenWorkingDaysExceedTotalDays() throws Exception {
+        when(employeeRepository.findById(1L))
+                .thenReturn(Optional.of(employee));
 
-    Employee employee = new Employee();
-    employee.setId(1L);
+        String payload = """
+            {
+              "month": 1,
+              "year": 2026,
+              "totalDays": 20,
+              "totalWorkingDays": 25,
+              "workedDays": 10
+            }
+            """;
 
-    when(employeeRepository.findById(1L))
-            .thenReturn(Optional.of(employee));
-
-    String payload = """
-        {
-          "month": 1,
-          "year": 2026,
-          "totalDays": 20,
-          "totalWorkingDays": 25,
-          "workedDays": 10
-        }
-        """;
-
-    mockMvc.perform(post("/api/attendance/submit/{employeeId}", 1L)
-            .contentType(MediaType.APPLICATION_JSON)
-            .content(payload))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message")
-                    .value("Working days cannot exceed total days"));
-}
-
-
+        mockMvc.perform(
+                post("/api/attendance/submit/{employeeId}", 1L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(payload)
+        )
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message")
+                .value("Working days cannot exceed total days"));
+    }
 }

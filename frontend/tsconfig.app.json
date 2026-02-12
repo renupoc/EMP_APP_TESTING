@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist/out-tsc/app",
+    "outDir": "./out-tsc/app",
     "types": []
   },
   "files": [
@@ -9,5 +9,9 @@
   ],
   "include": [
     "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.spec.ts",
+    "src/test.ts"
   ]
 }

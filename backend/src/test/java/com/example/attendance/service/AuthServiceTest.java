@@ -3,6 +3,7 @@ package com.example.attendance.service;
 import com.example.attendance.dto.LoginRequest;
 import com.example.attendance.dto.RegisterRequest;
 import com.example.attendance.entity.Employee;
+import com.example.attendance.exception.EmailAlreadyExistsException;
 import com.example.attendance.repository.EmployeeRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,12 +65,13 @@ class AuthServiceTest {
         when(employeeRepository.existsByEmail("renu@test.com"))
                 .thenReturn(true);
 
-        RuntimeException ex = assertThrows(
-                RuntimeException.class,
-                () -> authService.register(request)
-        );
+        EmailAlreadyExistsException exception =
+            assertThrows(
+                    EmailAlreadyExistsException.class,
+                    () -> authService.register(request)
+            );
 
-        assertEquals("Email already registered", ex.getMessage());
+        assertTrue(exception.getMessage().startsWith("Email already registered"));
         verify(employeeRepository, never()).save(any());
     }
 

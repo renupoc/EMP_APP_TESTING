@@ -77,8 +77,8 @@ class AdminAttendanceControllerIT {
         // GIVEN
         Employee employee = new Employee();
         employee.setFirstName("Renu");
-        employee.setLastName("K");
-        employee.setEmail("renu@test.com");
+        employee.setLastName("Kondapalli");
+        employee.setEmail("renupriyanka@gmail.com");
         employee.setDepartment("VEDC");
 
         employee = employeeRepository.save(employee);

@@ -1,0 +1,157 @@
+name: Build & Deploy App 
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  ci-cd:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ==============================
+      # Backend – Build & Test
+      # ==============================
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build & Run Unit Tests
+        working-directory: backend
+        run: mvn -B clean verify
+
+      # ==============================
+      # SonarQube
+      # ==============================
+      - name: SonarQube Scan
+        working-directory: backend
+        run: |
+          mvn sonar:sonar \
+            -Dsonar.projectKey=employee-availability-backend \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.token=${{ secrets.SONAR_TOKEN }}
+
+      - name: SonarQube Quality Gate
+        uses: sonarsource/sonarqube-quality-gate-action@v1.1.0
+        with:
+          scanMetadataReportFile: backend/target/sonar/report-task.txt
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+      # ==============================
+      # Frontend – Node
+      # ==============================
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      # ==============================
+      # Docker + GHCR
+      # ==============================
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GHCR_PAT }}
+
+      - name: Set lowercase repo owner
+        run: echo "REPO_OWNER_LC=${GITHUB_REPOSITORY_OWNER,,}" >> $GITHUB_ENV
+
+      - name: Build Backend Image
+        run: docker build -t ghcr.io/${REPO_OWNER_LC}/employee-backend:${{ github.run_number }} backend
+
+      - name: Build Frontend Image
+        run: docker build -t ghcr.io/${REPO_OWNER_LC}/employee-frontend:${{ github.run_number }} frontend
+
+      - name: Push Images to GHCR
+        run: |
+          docker push ghcr.io/${REPO_OWNER_LC}/employee-backend:${{ github.run_number }}
+          docker push ghcr.io/${REPO_OWNER_LC}/employee-frontend:${{ github.run_number }}
+
+      # ==============================
+      # CD – AWS Deploy
+      # ==============================
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Get EC2 Instance Details
+        id: ec2
+        run: |
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=app-server" "Name=instance-state-name,Values=running" \
+            --query "Reservations[*].Instances[*].InstanceId" \
+            --output text | head -n1)
+
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --instance-ids "$INSTANCE_ID" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" \
+            --output text)
+
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "public_ip=$PUBLIC_IP" >> $GITHUB_OUTPUT
+
+          echo "EC2 Instance: $INSTANCE_ID"
+          echo "Public IP: $PUBLIC_IP"
+
+      - name: Get RDS Endpoint
+        id: rds
+        run: |
+          DB_HOST=$(aws rds describe-db-instances \
+            --db-instance-identifier employees-db \
+            --query "DBInstances[0].Endpoint.Address" \
+            --output text)
+
+          echo "db_host=$DB_HOST" >> $GITHUB_OUTPUT
+          echo "DB Endpoint: $DB_HOST"
+
+      - name: Deploy via SSM
+        if: ${{ steps.ec2.outputs.instance_id != '' }}
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ steps.ec2.outputs.instance_id }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy CI build" \
+            --parameters "commands=[
+              \"GHCR_USER=${{ github.repository_owner }} \
+               GHCR_TOKEN=${{ secrets.GHCR_PAT }} \
+               DB_HOST=${{ steps.rds.outputs.db_host }} \
+               DB_USER=attendance_user \
+               DB_PASS=${{ secrets.DB_MASTER_PASSWORD }} \
+               BACKEND_IMAGE=ghcr.io/${REPO_OWNER_LC}/employee-backend:${{ github.run_number }} \
+               FRONTEND_IMAGE=ghcr.io/${REPO_OWNER_LC}/employee-frontend:${{ github.run_number }} \
+               /opt/app/deploy.sh\"
+            ]"
+
+      # ==============================
+      # Post-Deployment Smoke Tests
+      # ==============================
+      - name: Wait for application startup
+        run: sleep 40
+
+      - name: Backend Health Smoke Test
+        run: |
+          curl -f http://${{ steps.ec2.outputs.public_ip }}:8080/actuator/health
+
+      - name: API Smoke Test
+        run: |
+          curl -f http://${{ steps.ec2.outputs.public_ip }}:8080/api/attendance
+
+      - name: Frontend Smoke Test
+        run: |
+          curl -f http://${{ steps.ec2.outputs.public_ip }}

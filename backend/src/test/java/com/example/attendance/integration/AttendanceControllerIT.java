@@ -42,9 +42,10 @@ class AttendanceControllerIT {
     @Autowired
     private ObjectMapper objectMapper;
 
-    // =====================================================
-    // POST /submit/{employeeId} – SUCCESS
-    // =====================================================
+    /**
+     * Verifies that submitting valid attendance data
+     * returns HTTP 200 and saves attendance successfully.
+     */
     @Test
     void submitAttendance_shouldSaveAttendanceAndReturnOk() throws Exception {
 
@@ -72,9 +73,10 @@ class AttendanceControllerIT {
                         .value("Attendance saved successfully"));
     }
 
-    // =====================================================
-    // POST /submit – VALIDATION FAILURE
-    // =====================================================
+    /**
+     * Verifies validation logic:
+     * workedDays must not exceed totalWorkingDays.
+     */
     @Test
     void submitAttendance_shouldReturnBadRequest_whenWorkedDaysExceedTotalWorkingDays()
             throws Exception {
@@ -92,7 +94,7 @@ class AttendanceControllerIT {
         request.setYear(2025);
         request.setTotalDays(31);
         request.setTotalWorkingDays(10);
-        request.setWorkedDays(15); // ❌ invalid
+        request.setWorkedDays(15);
 
         mockMvc.perform(post("/api/attendance/submit/{id}", employee.getId())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -102,9 +104,10 @@ class AttendanceControllerIT {
                         .value("Worked days cannot exceed total working days"));
     }
 
-    // =====================================================
-    // GET /employee/{employeeId}
-    // =====================================================
+    /**
+     * Fetches attendance records for a specific employee
+     * and validates the returned data.
+     */
     @Test
     void getAttendanceByEmployee_shouldReturnAttendanceList() throws Exception {
 
@@ -131,9 +134,10 @@ class AttendanceControllerIT {
                 .andExpect(jsonPath("$[0].workedDays").value(10));
     }
 
-    // =====================================================
-    // GET /admin/all
-    // =====================================================
+    /**
+     * Retrieves all attendance records as an admin
+     * and expects HTTP 200 OK.
+     */
     @Test
     void getAllAttendance_shouldReturnAllRecords() throws Exception {
 
@@ -141,9 +145,10 @@ class AttendanceControllerIT {
                 .andExpect(status().isOk());
     }
 
-    // =====================================================
-    // DELETE /admin/{attendanceId}
-    // =====================================================
+    /**
+     * Deletes an attendance record by ID
+     * and verifies the operation succeeds.
+     */
     @Test
     void deleteAttendance_shouldDeleteRecord() throws Exception {
 
@@ -168,9 +173,10 @@ class AttendanceControllerIT {
                 .andExpect(status().isOk());
     }
 
-    // =====================================================
-    // PUT /admin/update/{attendanceId}
-    // =====================================================
+    /**
+     * Updates worked days and department for an attendance record
+     * and validates HTTP 200 response.
+     */
     @Test
     void updateAttendance_shouldUpdateWorkedDaysAndDepartment() throws Exception {
 

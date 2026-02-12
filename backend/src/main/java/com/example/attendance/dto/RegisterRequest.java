@@ -2,13 +2,13 @@ package com.example.attendance.dto;
 
 public class RegisterRequest {
 
-    public String firstName;
-    public String lastName;
-    public String email;
-    public String password;
-    public String department;
+    private String firstName;
+    private String lastName;
+    private String email;
+    private String password;
+    private String department;
 
-      // ===== getters & setters =====
+    // ===== getters & setters =====
 
     public String getFirstName() {
         return firstName;

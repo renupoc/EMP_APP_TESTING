@@ -1,19 +1,53 @@
-# IntelliJ IDEA files
+####################################
+# IntelliJ IDEA
+####################################
 .idea/
+*.iml
 
-# Maven build output
+####################################
+# Maven / Spring Boot
+####################################
 backend/target/
-
-# Node & Angular files
-frontend/node_modules/
-frontend/.angular/
-
-# Compiled / generated files
+target/
 *.class
 *.jar
 *.war
-*.log
 
-# OS generated files
+####################################
+# Node & Angular
+####################################
+frontend/node_modules/
+node_modules/
+frontend/.angular/
+frontend/dist/
+dist/
+
+####################################
+# Test Coverage
+####################################
+coverage/
+frontend/coverage/
+
+####################################
+# SonarQube
+####################################
+.scannerwork/
+frontend/.scannerwork/
+
+####################################
+# Logs
+####################################
+*.log
+logs/
+
+####################################
+# Environment Files
+####################################
+.env
+.env.local
+
+####################################
+# OS Files
+####################################
 .DS_Store
 Thumbs.db
