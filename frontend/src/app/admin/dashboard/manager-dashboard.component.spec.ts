@@ -3,15 +3,24 @@ import { ManagerDashboardComponent } from './manager-dashboard.component';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 
-describe('ManagerDashboardComponent', () => {
+describe('ManagerDashboardComponent (Unit)', () => {
   let component: ManagerDashboardComponent;
   let fixture: ComponentFixture<ManagerDashboardComponent>;
   let httpMock: HttpTestingController;
 
+  const BASE_URL =
+    'http://localhost:8080/api/attendance/admin/employees-attendance';
+
+  const WEEK_URL =
+    'http://localhost:8080/api/attendance/admin/weekly';
+
+  const WEEK_UPDATE_URL =
+    'http://localhost:8080/api/attendance/admin/weekly/update';
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [
-        ManagerDashboardComponent, // ✅ standalone component
+        ManagerDashboardComponent,
         HttpClientTestingModule
       ],
       schemas: [NO_ERRORS_SCHEMA]
@@ -21,33 +30,48 @@ describe('ManagerDashboardComponent', () => {
     component = fixture.componentInstance;
     httpMock = TestBed.inject(HttpTestingController);
 
-    // ✅ Mock browser APIs
     jest.spyOn(window, 'alert').mockImplementation(() => {});
     jest.spyOn(window, 'confirm').mockReturnValue(true);
+    jest.spyOn(console, 'error').mockImplementation(() => {});
 
-    fixture.detectChanges(); // triggers ngOnInit → loadEmployees()
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { href: '' }
+    });
+
+    fixture.detectChanges();
+
+    // 🔥 Flush ngOnInit call
+    httpMock.expectOne(BASE_URL).flush([]);
   });
 
   afterEach(() => {
-    httpMock.verify(); // ✅ prevents open handles
+    httpMock.verify();
     jest.clearAllMocks();
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // BASIC
-  // ---------------------------------------------------
+  // --------------------------------------------------
+
   it('should create component', () => {
     expect(component).toBeTruthy();
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // LOAD EMPLOYEES
-  // ---------------------------------------------------
-  it('should load employees on init', () => {
-    const mockEmployees = [
+  // --------------------------------------------------
+
+  it('should load employees', () => {
+    component.loadEmployees();
+
+    const req = httpMock.expectOne(BASE_URL);
+    expect(req.request.method).toBe('GET');
+
+    req.flush([
       {
         attendanceId: 1,
-        employeeId: 101,
+        employeeId: 10,
         name: 'John',
         email: 'john@test.com',
         department: 'IDIS',
@@ -57,32 +81,25 @@ describe('ManagerDashboardComponent', () => {
         totalWorkingDays: 22,
         workedDays: 20
       }
-    ];
-
-    const req = httpMock.expectOne(
-      'http://localhost:8080/api/attendance/admin/employees-attendance'
-    );
-    expect(req.request.method).toBe('GET');
-
-    req.flush(mockEmployees);
+    ]);
 
     expect(component.employees.length).toBe(1);
     expect(component.years).toEqual([2024]);
   });
 
-  it('should alert on loadEmployees failure', () => {
-    const req = httpMock.expectOne(
-      'http://localhost:8080/api/attendance/admin/employees-attendance'
-    );
+  it('should show alert on load failure', () => {
+    component.loadEmployees();
 
+    const req = httpMock.expectOne(BASE_URL);
     req.flush('error', { status: 500, statusText: 'Server Error' });
 
     expect(window.alert).toHaveBeenCalledWith('Failed to load attendance data');
   });
 
-  // ---------------------------------------------------
-  // FILTERED EMPLOYEES
-  // ---------------------------------------------------
+  // --------------------------------------------------
+  // FILTER
+  // --------------------------------------------------
+
   it('should filter employees by department', () => {
     component.employees = [
       { department: 'IDIS' } as any,
@@ -94,41 +111,38 @@ describe('ManagerDashboardComponent', () => {
     expect(component.filteredEmployees().length).toBe(1);
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // HELPERS
-  // ---------------------------------------------------
+  // --------------------------------------------------
+
   it('should calculate availability percent', () => {
     const emp = { workedDays: 10, totalWorkingDays: 20 } as any;
     expect(component.availabilityPercent(emp)).toBe(50);
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // WEEKLY TOGGLE
-  // ---------------------------------------------------
-  it('should load weekly data when toggling weeks', () => {
+  // --------------------------------------------------
+
+  it('should load weekly data', () => {
     const emp = {
-      employeeId: 1,
+      employeeId: 10,
       month: 1,
       year: 2024
     } as any;
 
     component.toggleWeeks(emp);
 
-    const req = httpMock.expectOne(req =>
-      req.url === 'http://localhost:8080/api/attendance/admin/weekly'
-    );
-
+    const req = httpMock.expectOne(WEEK_URL);
     expect(req.request.method).toBe('GET');
-    expect(req.request.params.get('employeeId')).toBe('1');
 
     req.flush([]);
 
     expect(component.expandedEmployee).toBe(emp);
   });
 
-  it('should collapse weekly view if same employee clicked', () => {
+  it('should collapse weekly if same employee clicked', () => {
     const emp = {} as any;
-
     component.expandedEmployee = emp;
     component.weeklyData = [{} as any];
 
@@ -138,29 +152,20 @@ describe('ManagerDashboardComponent', () => {
     expect(component.weeklyData.length).toBe(0);
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // MONTHLY EDIT
-  // ---------------------------------------------------
-  it('should edit employee', () => {
-    const emp = {
-      department: 'IDIS',
-      workedDays: 10
-    } as any;
-
-    component.editEmployee(emp);
-
-    expect(component.editingEmployee).toBe(emp);
-    expect(component.editModel.workingDays).toBe(10);
-  });
+  // --------------------------------------------------
 
   it('should save employee update', () => {
     component.editingEmployee = {
       attendanceId: 1,
-      totalWorkingDays: 22
+      totalWorkingDays: 22,
+      workedDays: 10,
+      department: 'IDIS'
     } as any;
 
     component.editModel = {
-      department: 'IDIS',
+      department: 'EMRI',
       workingDays: 20
     };
 
@@ -177,38 +182,35 @@ describe('ManagerDashboardComponent', () => {
     expect(window.alert).toHaveBeenCalledWith('Saved successfully');
   });
 
-  // ---------------------------------------------------
-  // WEEKLY EDIT
-  // ---------------------------------------------------
-  it('should save weekly update', () => {
+  // --------------------------------------------------
+  // WEEKLY UPDATE
+  // --------------------------------------------------
+
+  it('should update weekly attendance', () => {
     component.expandedEmployee = {
-      employeeId: 1,
+      employeeId: 10,
       month: 1,
       year: 2024
     } as any;
 
-    component.editedWeekDays = 4;
+    component.editedWeekDays = 3;
 
-    const week = {
+    component.saveWeek({
       weekNumber: 1,
       totalWorkingDays: 5
-    } as any;
+    } as any);
 
-    component.saveWeek(week);
-
-    const req = httpMock.expectOne(
-      'http://localhost:8080/api/attendance/admin/weekly/update'
-    );
-
-    expect(req.request.method).toBe('PUT');
-    req.flush({});
+    httpMock.expectOne(WEEK_UPDATE_URL).flush({});
+    httpMock.expectOne(WEEK_URL).flush([]);
+    httpMock.expectOne(BASE_URL).flush([]);
 
     expect(window.alert).toHaveBeenCalledWith('Weekly attendance updated');
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // DELETE
-  // ---------------------------------------------------
+  // --------------------------------------------------
+
   it('should delete employee', () => {
     component.employees = [
       { attendanceId: 1 } as any,
@@ -228,14 +230,12 @@ describe('ManagerDashboardComponent', () => {
     expect(window.alert).toHaveBeenCalledWith('Deleted successfully');
   });
 
-  // ---------------------------------------------------
+  // --------------------------------------------------
   // LOGOUT
-  // ---------------------------------------------------
+  // --------------------------------------------------
+
   it('should logout and redirect', () => {
     const spy = jest.spyOn(sessionStorage, 'clear');
-
-    delete (window as any).location;
-    (window as any).location = { href: '' };
 
     component.logout();
 

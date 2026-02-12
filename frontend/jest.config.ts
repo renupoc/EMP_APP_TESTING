@@ -12,14 +12,14 @@ const config: Config = {
   coverageDirectory: 'coverage',
   coverageReporters: ['lcov', 'text-summary'],
 
-  moduleFileExtensions: ['ts', 'js'],
+  moduleFileExtensions: ['ts', 'html', 'js'],
 
   transform: {
-    '^.+\\.(ts|mjs|js)$': 'jest-preset-angular'
+    '^.+\\.(ts|mjs|js|html)$': 'jest-preset-angular'
   },
 
   moduleNameMapper: {
-    '\\.(html|css|scss)$': '<rootDir>/__mocks__/fileMock.js'
+    '\\.(css|scss)$': '<rootDir>/__mocks__/fileMock.js'
   },
 
   transformIgnorePatterns: ['node_modules/(?!.*\\.mjs$)']
