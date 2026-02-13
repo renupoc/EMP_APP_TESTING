@@ -1,12 +1,15 @@
 package com.example.attendance.controller;
 
 import com.example.attendance.dto.AttendanceRequest;
+//import com.example.attendance.dto.WeeklySummaryResponse;
 import com.example.attendance.entity.Attendance;
 import com.example.attendance.entity.AttendanceDay;
 import com.example.attendance.entity.Employee;
 import com.example.attendance.repository.AttendanceDayRepository;
 import com.example.attendance.repository.AttendanceRepository;
 import com.example.attendance.repository.EmployeeRepository;
+import com.example.attendance.service.AttendanceService;
+//import com.example.attendance.dto.WeeklyUpdateRequest;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,25 +27,25 @@ public class AttendanceController {
     private final AttendanceRepository attendanceRepository;
     private final AttendanceDayRepository attendanceDayRepository;
     private final EmployeeRepository employeeRepository;
-
-    private static final String MESSAGE = "message";
-    private static final String STATUS_PRESENT = "PRESENT";
+    private final AttendanceService attendanceService;
 
     public AttendanceController(
             AttendanceRepository attendanceRepository,
             AttendanceDayRepository attendanceDayRepository,
-            EmployeeRepository employeeRepository) {
+            EmployeeRepository employeeRepository,
+            AttendanceService attendanceService) {
 
         this.attendanceRepository = attendanceRepository;
         this.attendanceDayRepository = attendanceDayRepository;
         this.employeeRepository = employeeRepository;
+        this.attendanceService = attendanceService;
     }
 
     // =====================================================
     // EMPLOYEE – Submit Attendance (MONTHLY + DAILY)
     // =====================================================
     @PostMapping("/submit/{employeeId}")
-    public ResponseEntity<Map<String, Object>> submitAttendance(
+    public ResponseEntity<?> submitAttendance(
             @PathVariable Long employeeId,
             @RequestBody AttendanceRequest request) {
 
@@ -50,28 +53,25 @@ public class AttendanceController {
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         // =========================
-        // VALIDATIONS
+        // STRONG VALIDATIONS
         // =========================
         if (request.getTotalWorkingDays() <= 0) {
             return ResponseEntity.badRequest()
-                    .body(Map.of(
-                            MESSAGE, "Total working days must be greater than 0"));
+                    .body(Map.of("message", "Total working days must be greater than 0"));
         }
 
         if (request.getWorkedDays() > request.getTotalWorkingDays()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of(
-                            MESSAGE, "Worked days cannot exceed total working days"));
+                    .body(Map.of("message", "Worked days cannot exceed total working days"));
         }
 
         if (request.getTotalWorkingDays() > request.getTotalDays()) {
             return ResponseEntity.badRequest()
-                    .body(Map.of(
-                            MESSAGE, "Working days cannot exceed total days"));
+                    .body(Map.of("message", "Working days cannot exceed total days"));
         }
 
         // =========================
-        // UPSERT MONTHLY ATTENDANCE
+        // UPSERT MONTHLY SUMMARY
         // =========================
         Attendance attendance = attendanceRepository
                 .findByEmployeeIdAndMonthAndYear(
@@ -92,20 +92,22 @@ public class AttendanceController {
 
         // =========================
         // SAVE DAILY ATTENDANCE
+        // (NO DUPLICATES)
         // =========================
         if (request.getSelectedDates() != null && !request.getSelectedDates().isEmpty()) {
 
             for (String dateStr : request.getSelectedDates()) {
+
                 LocalDate date = LocalDate.parse(dateStr);
 
-                attendanceDayRepository
-                        .findByEmployee_IdAndDate(employeeId, date)
-                        .ifPresent(attendanceDayRepository::delete);
+                // delete existing record for that day (if any)
+                attendanceDayRepository.findByEmployee_IdAndDate(employeeId, date).
+                ifPresent(attendanceDayRepository::delete);
 
                 AttendanceDay day = new AttendanceDay();
                 day.setEmployee(employee);
                 day.setDate(date);
-                day.setStatus(STATUS_PRESENT);
+                day.setStatus("PRESENT");
 
                 attendanceDayRepository.save(day);
             }
@@ -113,7 +115,7 @@ public class AttendanceController {
 
         return ResponseEntity.ok(
                 Map.of(
-                        MESSAGE, "Attendance saved successfully",
+                        "message", "Attendance saved successfully",
                         "employeeId", employeeId,
                         "month", request.getMonth(),
                         "year", request.getYear()
@@ -162,29 +164,30 @@ public class AttendanceController {
     }
 
     // =====================================================
-    // EMPLOYEE – Get daily attendance for a month
-    // =====================================================
+// EMPLOYEE – Get daily attendance for a month
+// =====================================================
     @GetMapping("/employee/{employeeId}/days")
     public List<String> getEmployeeAttendanceDays(
-            @PathVariable Long employeeId,
-            @RequestParam int month,
-            @RequestParam int year) {
+        @PathVariable Long employeeId,
+        @RequestParam int month,
+        @RequestParam int year) {
 
-        LocalDate start = LocalDate.of(year, month, 1);
-        LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
+    LocalDate start = LocalDate.of(year, month, 1);
+    LocalDate end = start.withDayOfMonth(start.lengthOfMonth());
 
-        return attendanceDayRepository
-                .findByEmployee_IdAndDateBetween(employeeId, start, end)
-                .stream()
-                .map(d -> d.getDate().toString())
-                .toList();
-    }
+    return attendanceDayRepository
+            .findByEmployee_IdAndDateBetween(employeeId, start, end)
+            .stream()
+            .map(d -> d.getDate().toString()) // yyyy-MM-dd
+            .toList();
+}
+
 
     // =====================================================
     // ADMIN – Delete Attendance
     // =====================================================
     @DeleteMapping("/admin/{attendanceId}")
-    public ResponseEntity<Void> deleteAttendance(
+    public ResponseEntity<?> deleteAttendance(
             @PathVariable Long attendanceId) {
 
         if (!attendanceRepository.existsById(attendanceId)) {
@@ -199,7 +202,7 @@ public class AttendanceController {
     // ADMIN – Update Attendance
     // =====================================================
     @PutMapping("/admin/update/{attendanceId}")
-    public ResponseEntity<Void> updateAttendance(
+    public ResponseEntity<?> updateAttendance(
             @PathVariable Long attendanceId,
             @RequestBody Map<String, Object> payload) {
 

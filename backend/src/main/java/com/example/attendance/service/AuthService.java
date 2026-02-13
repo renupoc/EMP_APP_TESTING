@@ -4,10 +4,6 @@ import com.example.attendance.dto.LoginRequest;
 import com.example.attendance.dto.RegisterRequest;
 import com.example.attendance.entity.Employee;
 import com.example.attendance.repository.EmployeeRepository;
-import com.example.attendance.exception.InvalidCredentialsException;
-import com.example.attendance.exception.EmailAlreadyExistsException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -16,7 +12,6 @@ import java.util.Map;
 @Service
 public class AuthService {
 
-    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
     private final EmployeeRepository employeeRepository;
 
     public AuthService(EmployeeRepository employeeRepository) {
@@ -27,7 +22,7 @@ public class AuthService {
     public Employee register(RegisterRequest request) {
 
         if (employeeRepository.existsByEmail(request.getEmail())) {
-            throw new EmailAlreadyExistsException(request.getEmail());
+            throw new RuntimeException("Email already registered");
         }
 
         Employee emp = new Employee();
@@ -44,16 +39,11 @@ public class AuthService {
 
     // LOGIN
     public Map<String, Object> login(LoginRequest request) {
-
-        log.debug("Login attempt for email: {}", request.getEmail());
-
+        System.out.println(request.getEmail()+request.getPassword());
         Employee employee = employeeRepository
                 .findByEmail(request.getEmail())
-                .orElseThrow(InvalidCredentialsException::new);
-
-        if (!employee.getPassword().equals(request.getPassword())) {
-            throw new InvalidCredentialsException();
-        }
+                .filter(e -> e.getPassword().equals(request.getPassword()))
+                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
 
         Map<String, Object> response = new HashMap<>();
         response.put("employeeId", employee.getId());

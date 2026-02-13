@@ -4,7 +4,6 @@ import com.example.attendance.dto.AttendanceRequest;
 import com.example.attendance.dto.WeeklySummaryResponse;
 import com.example.attendance.entity.*;
 import com.example.attendance.repository.*;
-
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
@@ -15,13 +14,6 @@ import java.util.List;
 
 @Service
 public class AttendanceService {
-
-    /* =========================
-       Sonar-safe constants
-       ========================= */
-    private static final String EMPLOYEE_NOT_FOUND = "Employee not found";
-    private static final String ATTENDANCE_NOT_FOUND = "Attendance not found";
-    private static final String INVALID_WEEK_NUMBER = "Invalid week number";
 
     private final AttendanceRepository attendanceRepository;
     private final EmployeeRepository employeeRepository;
@@ -45,7 +37,8 @@ public class AttendanceService {
     // =====================================================
     public void submitAttendance(Long employeeId, AttendanceRequest request) {
 
-        Employee employee = getEmployee(employeeId);
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
 
         Attendance attendance = attendanceRepository
                 .findByEmployeeIdAndMonthAndYear(
@@ -67,6 +60,7 @@ public class AttendanceService {
                         (request.getWorkedDays() * 100) / request.getTotalWorkingDays();
 
         attendance.setAvailability(availability);
+
         attendanceRepository.save(attendance);
     }
 
@@ -81,41 +75,61 @@ public class AttendanceService {
             int workedDays
     ) {
 
-        Employee employee = getEmployee(employeeId);
-        Attendance attendance = getAttendance(employeeId, month, year);
-
         YearMonth ym = YearMonth.of(year, month);
         int totalDays = ym.lengthOfMonth();
 
         int currentWeek = 1;
         int weekStartDay = 1;
 
+        Employee employee = employeeRepository
+                .findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
         while (weekStartDay <= totalDays) {
 
-            WeekRange range =
-                    calculateWeekRange(year, month, weekStartDay, totalDays);
+            LocalDate startDate = LocalDate.of(year, month, weekStartDay);
+            LocalDate endDate = startDate;
+
+            while (endDate.getDayOfWeek() != DayOfWeek.SUNDAY
+                    && endDate.getDayOfMonth() < totalDays) {
+                endDate = endDate.plusDays(1);
+            }
 
             if (currentWeek == weekNumber) {
 
                 attendanceDayRepository
-                        .deleteByEmployee_IdAndDateBetween(
-                                employeeId,
-                                range.start(),
-                                range.end()
-                        );
+                        .deleteByEmployee_IdAndDateBetween(employeeId, startDate, endDate);
 
-                saveWorkedDays(employee, range, workedDays);
+                int count = 0;
+                LocalDate cursor = startDate;
 
-                recalculateMonthlyAvailability(
-                        attendance, employeeId, month, year);
+                while (!cursor.isAfter(endDate) && count < workedDays) {
+                    if (cursor.getDayOfWeek() != DayOfWeek.SATURDAY
+                            && cursor.getDayOfWeek() != DayOfWeek.SUNDAY) {
+
+                        AttendanceDay day = new AttendanceDay();
+                        day.setEmployee(employee);
+                        day.setDate(cursor);
+                        day.setStatus("PRESENT");
+                        attendanceDayRepository.save(day);
+                        count++;
+                    }
+                    cursor = cursor.plusDays(1);
+                }
+
+                Attendance attendance = attendanceRepository
+                        .findByEmployeeIdAndMonthAndYear(employeeId, month, year)
+                        .orElseThrow(() -> new RuntimeException("Attendance not found"));
+
+                recalculateMonthlyAvailability(attendance, employeeId, month, year);
                 return;
             }
 
             currentWeek++;
-            weekStartDay = range.end().getDayOfMonth() + 1;
+            weekStartDay = endDate.getDayOfMonth() + 1;
         }
 
-        throw new IllegalArgumentException(INVALID_WEEK_NUMBER);
+        throw new RuntimeException("Invalid week number");
     }
 
     // =====================================================
@@ -124,36 +138,88 @@ public class AttendanceService {
     public List<WeeklySummaryResponse> getWeeklyAttendance(
             Long employeeId, int month, int year) {
 
-        Employee employee = getEmployee(employeeId);
-        Attendance attendance = getAttendance(employeeId, month, year);
+        List<WeeklySummaryResponse> result = new ArrayList<>();
 
         YearMonth ym = YearMonth.of(year, month);
         int totalDays = ym.lengthOfMonth();
 
-        List<WeeklySummaryResponse> result = new ArrayList<>();
-
         int weekNumber = 1;
         int weekStartDay = 1;
 
+        Employee employee = employeeRepository
+                .findById(employeeId)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        Attendance attendance = attendanceRepository
+                .findByEmployeeIdAndMonthAndYear(employeeId, month, year)
+                .orElseThrow(() -> new RuntimeException("Attendance not found"));
+
         while (weekStartDay <= totalDays) {
 
-            WeekRange range =
-                    calculateWeekRange(year, month, weekStartDay, totalDays);
+            LocalDate startDate = LocalDate.of(year, month, weekStartDay);
+            LocalDate endDate = startDate;
 
-            WeeklyCounts counts =
-                    calculateWeeklyCounts(employeeId, range.start(), range.end());
+            while (endDate.getDayOfWeek() != DayOfWeek.SUNDAY
+                    && endDate.getDayOfMonth() < totalDays) {
+                endDate = endDate.plusDays(1);
+            }
 
-            AttendanceWeekly weekly =
-                    upsertWeeklyAttendance(
-                            employee, attendance, year, month, weekNumber, range, counts);
+            int totalWorkingDays = 0;
+            int workedDays = 0;
 
-            result.add(
-                    toWeeklyResponse(weekly, weekNumber++, range, counts));
+            LocalDate temp = startDate;
+            while (!temp.isAfter(endDate)) {
 
-            weekStartDay = range.end().getDayOfMonth() + 1;
+                if (temp.getDayOfWeek() != DayOfWeek.SATURDAY
+                        && temp.getDayOfWeek() != DayOfWeek.SUNDAY) {
+
+                    totalWorkingDays++;
+
+                    if (attendanceDayRepository
+                            .existsByEmployee_IdAndDate(employeeId, temp)) {
+                        workedDays++;
+                    }
+                }
+                temp = temp.plusDays(1);
+            }
+
+            AttendanceWeekly weekly = attendanceWeeklyRepository
+                    .findByAttendance_IdAndYearAndMonthAndWeekNumber(
+                            attendance.getId(), year, month, weekNumber
+                    )
+                    .orElse(new AttendanceWeekly());
+
+            weekly.setEmployee(employee);
+            weekly.setAttendance(attendance);
+            weekly.setYear(year);
+            weekly.setMonth(month);
+            weekly.setWeekNumber(weekNumber);
+            weekly.setWeekStart(startDate);
+            weekly.setWeekEnd(endDate);
+            weekly.setTotalWorkingDays(totalWorkingDays);
+            weekly.setWorkedDays(workedDays);
+            weekly.setAvailability(
+                    totalWorkingDays == 0 ? 0 :
+                            (workedDays * 100) / totalWorkingDays
+            );
+
+            attendanceWeeklyRepository.save(weekly);
+
+            WeeklySummaryResponse w = new WeeklySummaryResponse();
+            w.setWeekNumber(weekNumber++);
+            w.setStart(startDate);
+            w.setEnd(endDate);
+            w.setTotalWorkingDays(totalWorkingDays);
+            w.setWorkedDays(workedDays);
+            w.setAvailability(weekly.getAvailability());
+
+            result.add(w);
+            weekStartDay = endDate.getDayOfMonth() + 1;
         }
 
+        // ⭐ FIX: ALWAYS UPDATE MONTHLY AVAILABILITY
         recalculateMonthlyAvailability(attendance, employeeId, month, year);
+
         return result;
     }
 
@@ -166,7 +232,6 @@ public class AttendanceService {
             int month,
             int year
     ) {
-
         YearMonth ym = YearMonth.of(year, month);
 
         LocalDate start = ym.atDay(1);
@@ -185,138 +250,7 @@ public class AttendanceService {
 
         attendance.setWorkedDays(workedDays);
         attendance.setAvailability(availability);
+
         attendanceRepository.save(attendance);
     }
-
-    // =====================================================
-    // PRIVATE HELPERS
-    // =====================================================
-
-    private Employee getEmployee(Long employeeId) {
-        return employeeRepository.findById(employeeId)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(EMPLOYEE_NOT_FOUND));
-    }
-
-    private Attendance getAttendance(Long employeeId, int month, int year) {
-        return attendanceRepository
-                .findByEmployeeIdAndMonthAndYear(employeeId, month, year)
-                .orElseThrow(() ->
-                        new IllegalArgumentException(ATTENDANCE_NOT_FOUND));
-    }
-
-    private WeekRange calculateWeekRange(
-            int year, int month, int startDay, int totalDays) {
-
-        LocalDate start = LocalDate.of(year, month, startDay);
-        LocalDate end = start;
-
-        while (end.getDayOfWeek() != DayOfWeek.SUNDAY
-                && end.getDayOfMonth() < totalDays) {
-            end = end.plusDays(1);
-        }
-        return new WeekRange(start, end);
-    }
-
-    private WeeklyCounts calculateWeeklyCounts(
-            Long employeeId, LocalDate start, LocalDate end) {
-
-        int totalWorkingDays = 0;
-        int workedDays = 0;
-
-        LocalDate date = start;
-        while (!date.isAfter(end)) {
-
-            if (!isWeekend(date)) {
-                totalWorkingDays++;
-                if (attendanceDayRepository
-                        .existsByEmployee_IdAndDate(employeeId, date)) {
-                    workedDays++;
-                }
-            }
-            date = date.plusDays(1);
-        }
-        return new WeeklyCounts(totalWorkingDays, workedDays);
-    }
-
-    private void saveWorkedDays(
-            Employee employee, WeekRange range, int workedDays) {
-
-        int count = 0;
-        LocalDate date = range.start();
-
-        while (!date.isAfter(range.end()) && count < workedDays) {
-            if (!isWeekend(date)) {
-
-                AttendanceDay day = new AttendanceDay();
-                day.setEmployee(employee);
-                day.setDate(date);
-                day.setStatus("PRESENT");
-                attendanceDayRepository.save(day);
-                count++;
-            }
-            date = date.plusDays(1);
-        }
-    }
-
-    private AttendanceWeekly upsertWeeklyAttendance(
-            Employee employee,
-            Attendance attendance,
-            int year,
-            int month,
-            int weekNumber,
-            WeekRange range,
-            WeeklyCounts counts
-    ) {
-
-        AttendanceWeekly weekly =
-                attendanceWeeklyRepository
-                        .findByAttendance_IdAndYearAndMonthAndWeekNumber(
-                                attendance.getId(), year, month, weekNumber)
-                        .orElse(new AttendanceWeekly());
-
-        weekly.setEmployee(employee);
-        weekly.setAttendance(attendance);
-        weekly.setYear(year);
-        weekly.setMonth(month);
-        weekly.setWeekNumber(weekNumber);
-        weekly.setWeekStart(range.start());
-        weekly.setWeekEnd(range.end());
-        weekly.setTotalWorkingDays(counts.total());
-        weekly.setWorkedDays(counts.worked());
-        weekly.setAvailability(
-                counts.total() == 0 ? 0 :
-                        (counts.worked() * 100) / counts.total());
-
-        attendanceWeeklyRepository.save(weekly);
-        return weekly;
-    }
-
-    private WeeklySummaryResponse toWeeklyResponse(
-            AttendanceWeekly weekly,
-            int weekNumber,
-            WeekRange range,
-            WeeklyCounts counts
-    ) {
-
-        WeeklySummaryResponse w = new WeeklySummaryResponse();
-        w.setWeekNumber(weekNumber);
-        w.setStart(range.start());
-        w.setEnd(range.end());
-        w.setTotalWorkingDays(counts.total());
-        w.setWorkedDays(counts.worked());
-        w.setAvailability(weekly.getAvailability());
-        return w;
-    }
-
-    private boolean isWeekend(LocalDate date) {
-        return date.getDayOfWeek() == DayOfWeek.SATURDAY
-                || date.getDayOfWeek() == DayOfWeek.SUNDAY;
-    }
-
-    // =====================================================
-    // HELPER RECORDS (Java 21)
-    // =====================================================
-    private record WeekRange(LocalDate start, LocalDate end) {}
-    private record WeeklyCounts(int total, int worked) {}
 }

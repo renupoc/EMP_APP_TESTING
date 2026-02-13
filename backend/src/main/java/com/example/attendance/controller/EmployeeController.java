@@ -15,18 +15,16 @@ public class EmployeeController {
         this.employeeRepository = employeeRepository;
     }
 
-    // ===============================
-    // GET employee profile by ID
-    // ===============================
-    @GetMapping("/by-id/{id}")
+    // ✅ PROFILE API (USED BY FRONTEND)
+    @GetMapping("/by-email/{email}")
     public Employee getEmployeeProfile(@PathVariable Long id) {
         return employeeRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
     }
 
-    // ===============================
-    // UPDATE department
-    // ===============================
+    
+
+    // ✅ UPDATE DEPARTMENT
     @PutMapping("/{id}/department")
     public Employee updateDepartment(
             @PathVariable Long id,
