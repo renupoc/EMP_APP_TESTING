@@ -107,7 +107,7 @@ jobs:
             --parameters "commands=[
               \"GHCR_USER=${{ github.repository_owner }} \
                GHCR_TOKEN=${{ secrets.GHCR_PAT }} \
-               DB_HOST=${{ secrets.DB_HOST }} \
+               DB_HOST=localhost \
                DB_USER=attendance_user \
                DB_PASS=${{ secrets.DB_MASTER_PASSWORD }} \
                BACKEND_IMAGE=ghcr.io/${REPO_OWNER_LC}/employee-backend:${{ github.run_number }} \
